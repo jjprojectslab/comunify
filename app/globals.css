@@ -1,7 +1,7 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 @import "tw-animate-css";
-
-@custom-variant dark (&:is(.dark *));
 
 :root {
   --background: oklch(0.99 0.002 240);
@@ -74,7 +74,7 @@
   --sidebar-ring: oklch(0.65 0.12 180);
 }
 
-@theme inline {
+:root {
   --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, monospace;
   --color-background: var(--background);
