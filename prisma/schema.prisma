@@ -1,0 +1,137 @@
+// This is your Prisma schema file for Church Management SaaS
+// Multi-tenant architecture: Organization → Location → User
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enum for user roles within the organization
+enum Role {
+  MEMBER
+  LEADER
+  ADMIN
+}
+
+// Organization (Tenant) - The main church entity
+model Organization {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  description String?
+  logoUrl     String?
+  website     String?
+  email       String?
+  phone       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relations
+  locations   Location[]
+  users       User[]
+
+  @@map("organizations")
+}
+
+// Location (Sede/Anexo) - A campus or branch of the organization
+model Location {
+  id             String       @id @default(cuid())
+  name           String
+  address        String?
+  city           String?
+  state          String?
+  country        String?
+  postalCode     String?
+  phone          String?
+  email          String?
+  isMainCampus   Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // Foreign key to Organization
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Relations
+  users          User[]
+
+  @@map("locations")
+}
+
+// User - Church member or staff
+model User {
+  id             String       @id @default(cuid())
+  email          String       @unique
+  emailVerified  DateTime?
+  name           String?
+  firstName      String?
+  lastName       String?
+  image          String?
+  passwordHash   String?
+  phone          String?
+  role           Role         @default(MEMBER)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // Foreign key to Organization (required)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Foreign key to Location (optional - Admins might not have a specific location)
+  locationId     String?
+  location       Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  // NextAuth relations
+  accounts       Account[]
+  sessions       Session[]
+
+  @@map("users")
+}
+
+// NextAuth Account model for OAuth providers
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// NextAuth Session model
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// NextAuth Verification Token for email verification
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
