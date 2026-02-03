@@ -11,9 +11,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { signIn } from "@/app/actions/auth"
+import { useI18n } from "@/lib/i18n/context"
 
 export function LoginForm() {
   const router = useRouter()
+  const { t } = useI18n()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -57,7 +59,12 @@ export function LoginForm() {
     setIsLoading(false)
 
     if (!result.success) {
-      setError(result.error || "Email o contraseña incorrectos")
+      // Check if error is "Email not confirmed"
+      let displayError = result.error || "Email o contraseña incorrectos"
+      if (result.error?.includes("Email not confirmed")) {
+        displayError = t.common.emailNotConfirm
+      }
+      setError(displayError)
       return
     }
 
@@ -79,7 +86,7 @@ export function LoginForm() {
       {/* Email Field */}
       <div className="space-y-2">
         <Label htmlFor="email" className="text-sm font-medium">
-          Email address
+          {t.admin.email}
         </Label>
         <div className="relative">
           <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
