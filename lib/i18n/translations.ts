@@ -21,6 +21,7 @@ export const translations = {
       actions: "Actions",
       viewAll: "View all",
       noResults: "No results found",
+      emailNotConfirm: "Email not confirmed. Verify email inbox"
     },
     // Landing Page
     landing: {
@@ -147,6 +148,7 @@ export const translations = {
       actions: "Acciones",
       viewAll: "Ver todos",
       noResults: "No se encontraron resultados",
+      emailNotConfirm: "Email no confirmado. Revise su casilla de correo."
     },
     // Página Principal
     landing: {
