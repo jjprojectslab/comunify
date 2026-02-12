@@ -713,9 +713,15 @@ export async function createUserAsAdmin(formData: {
   })
 
   if (authError) {
-    // Handle duplicate email
-    if (authError.message.includes("already been registered") || authError.message.includes("already exists")) {
-      return { success: false, error: "Ya existe un usuario con este email" }
+    // Handle duplicate email - check message and error code
+    const errMsg = authError.message?.toLowerCase() || ""
+    const errCode = (authError as Record<string, unknown>).code as string || ""
+    if (
+      errMsg.includes("already been registered") || 
+      errMsg.includes("already exists") || 
+      errCode === "email_exists"
+    ) {
+      return { success: false, error: "Ya existe un usuario con este correo electronico. Cada usuario debe tener un correo unico." }
     }
     return { success: false, error: authError.message }
   }
