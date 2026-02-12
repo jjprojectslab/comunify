@@ -691,32 +691,45 @@ export async function createUserAsAdmin(formData: {
     return { success: false, error: "No autorizado: Solo usuarios con roles pueden crear usuarios" }
   }
 
-  // Create user in Supabase Auth
-  const { data: authData, error: authError } = await supabase.auth.signUp({
+  // Use Admin API with service role to create user directly in auth.users
+  // This ensures the user exists before we create the profile
+  const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const fullName = `${formData.firstName} ${formData.lastName}`
+
+  // Create user via admin API - this creates the user immediately in auth.users
+  const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
     email: formData.email,
     password: formData.password,
-    options: {
-      emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || undefined,
-      data: {
-        full_name: `${formData.firstName} ${formData.lastName}`,
-      },
+    email_confirm: false,
+    user_metadata: {
+      full_name: fullName,
     },
   })
 
   if (authError) {
+    // Handle duplicate email
+    if (authError.message.includes("already been registered") || authError.message.includes("already exists")) {
+      return { success: false, error: "Ya existe un usuario con este email" }
+    }
     return { success: false, error: authError.message }
   }
 
   if (!authData.user) {
-    return { success: false, error: "Failed to create user" }
+    return { success: false, error: "Error al crear usuario" }
   }
 
-  // Create profile immediately after user creation
-  const { error: profileError } = await supabase.from("profiles").insert({
+  // Now create profile - the user is guaranteed to exist in auth.users
+  const { error: profileError } = await adminClient.from("profiles").insert({
     id: authData.user.id,
     organization_id: formData.organizationId || null,
     location_id: formData.locationId || null,
-    full_name: `${formData.firstName} ${formData.lastName}`,
+    full_name: fullName,
     email: formData.email,
     role: formData.role,
     is_active: true,
@@ -725,11 +738,13 @@ export async function createUserAsAdmin(formData: {
 
   if (profileError) {
     console.error("Error creating profile:", profileError)
+    // Clean up: delete the auth user if profile creation fails
+    await adminClient.auth.admin.deleteUser(authData.user.id)
     return { success: false, error: `Error creando perfil: ${profileError.message}` }
   }
 
   // Add role to user_roles table
-  const { error: roleError } = await supabase.from("user_roles").insert({
+  const { error: roleError } = await adminClient.from("user_roles").insert({
     user_id: authData.user.id,
     role: formData.role,
   })
@@ -741,6 +756,6 @@ export async function createUserAsAdmin(formData: {
   revalidatePath("/dashboard")
   return { 
     success: true, 
-    message: "Usuario creado. El usuario debe confirmar su email antes de iniciar sesión, o puedes verificarlo manualmente desde la edición." 
+    message: "Usuario creado. El usuario debe confirmar su email antes de iniciar sesion, o puedes verificarlo manualmente desde la edicion." 
   }
 }
