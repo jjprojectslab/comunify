@@ -70,7 +70,7 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
   const isSuperAdmin = profile.role === "SUPER_ADMIN"
 
   // Filter areas based on selected location (only for SUPER_ADMIN)
-  const filteredAreas = isSuperAdmin && selectedLocationFilter
+  const filteredAreas = isSuperAdmin && selectedLocationFilter && selectedLocationFilter !== "all"
     ? areas.filter(area => area.location_id === selectedLocationFilter)
     : areas
 
@@ -210,7 +210,7 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
                   <SelectValue placeholder="Todas las sedes" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas las sedes</SelectItem>
+                  <SelectItem value="all">Todas las sedes</SelectItem>
                   {locations.map((location) => (
                     <SelectItem key={location.id} value={location.id}>
                       {location.name} {location.city ? `(${location.city})` : ""}
