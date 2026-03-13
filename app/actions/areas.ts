@@ -177,21 +177,39 @@ export async function createArea(data: {
 
   // Add leaders to area_members and ensure they have LEADER role
   if (createdArea && leaderIds.length > 0) {
+    // Use admin client to update roles (bypasses RLS)
+    const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+    const adminClient = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
     // Get all leader profiles to check their current roles
-    const { data: leaderProfiles } = await supabase
+    const { data: leaderProfiles } = await adminClient
       .from("profiles")
       .select("id, role")
       .in("id", leaderIds)
 
     // Update profiles to have LEADER role if they don't already have it
-    for (const leader of leaderProfiles || []) {
+    const updatePromises = (leaderProfiles || []).map(async (leader) => {
       if (leader.role !== "LEADER" && leader.role !== "PASTOR" && leader.role !== "SUPER_ADMIN") {
-        await supabase
+        console.log(`[v0] Updating user ${leader.id} to LEADER role`)
+        const { error: updateError } = await adminClient
           .from("profiles")
           .update({ role: "LEADER" })
           .eq("id", leader.id)
+        
+        if (updateError) {
+          console.error(`[v0] Error updating role for user ${leader.id}:`, updateError)
+        } else {
+          console.log(`[v0] Successfully updated user ${leader.id} to LEADER role`)
+        }
       }
-    }
+    })
+
+    // Wait for all role updates to complete
+    await Promise.all(updatePromises)
 
     // Add them to area_members as leaders
     const areaMembersData = leaderIds.map(leaderId => ({
@@ -200,13 +218,15 @@ export async function createArea(data: {
       is_leader: true,
     }))
 
-    const { error: memberError } = await supabase
+    const { error: memberError } = await adminClient
       .from("area_members")
       .insert(areaMembersData)
 
     if (memberError) {
       console.error("[v0] Error adding leaders to area:", memberError)
       // Don't fail the entire creation, just log the error
+    } else {
+      console.log(`[v0] Successfully added ${leaderIds.length} leaders to area ${createdArea.id}`)
     }
   }
 
