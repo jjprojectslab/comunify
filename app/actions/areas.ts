@@ -41,7 +41,7 @@ async function canManageAreas() {
   return { allowed, profile }
 }
 
-// Get all areas (filtered by location for non-SUPER_ADMIN) 
+// Get all areas (filtered by location and role)
 export async function getAreas() {
   const supabase = await createClient()
   const { allowed, profile } = await canManageAreas()
@@ -57,9 +57,25 @@ export async function getAreas() {
     `)
     .order("created_at", { ascending: false })
 
-  // Non-SUPER_ADMIN can only see areas from their location
-  if (profile?.role !== "SUPER_ADMIN" && profile?.location_id) {
-    query = query.eq("location_id", profile.location_id)
+  // Filter based on role
+  if (profile?.role === "SUPER_ADMIN") {
+    // SUPER_ADMIN sees all areas (no filter needed)
+  } else if (profile?.role === "PASTOR") {
+    // PASTOR sees only areas from their location
+    if (profile?.location_id) {
+      query = query.eq("location_id", profile.location_id)
+    }
+  } else if (profile?.role === "LEADER") {
+    // LEADER sees only areas where they are a leader
+    // We need to join with area_members table and filter
+    query = supabase
+      .from("areas")
+      .select(`
+        *,
+        location:locations(id, name, city),
+        creator:profiles!areas_created_by_fkey(id, full_name)
+      `)
+      .order("created_at", { ascending: false })
   }
 
   const { data, error } = await query
@@ -69,9 +85,22 @@ export async function getAreas() {
     return []
   }
 
+  // For LEADER role, filter areas where they are a leader
+  let areas = data || []
+  if (profile?.role === "LEADER" && profile?.id) {
+    const { data: leaderAreas } = await supabase
+      .from("area_members")
+      .select("area_id")
+      .eq("user_id", profile.id)
+      .eq("is_leader", true)
+
+    const leaderAreaIds = new Set((leaderAreas || []).map(a => a.area_id))
+    areas = areas.filter(area => leaderAreaIds.has(area.id))
+  }
+
   // Get member count for each area
   const areasWithCount = await Promise.all(
-    (data || []).map(async (area) => {
+    areas.map(async (area) => {
       const { count } = await supabase
         .from("area_members")
         .select("*", { count: "exact", head: true })
@@ -84,11 +113,12 @@ export async function getAreas() {
   return areasWithCount
 }
 
-// Create a new area
+// Create a new area with multiple leaders
 export async function createArea(data: {
   name: string
   description?: string
   location_id: string
+  leader_ids?: string[]
 }) {
   const supabase = await createClient()
   const { allowed, profile } = await canManageAreas()
@@ -106,11 +136,30 @@ export async function createArea(data: {
     return { success: false, error: "Debes pertenecer a una sede para crear areas", area: null }
   }
 
+  // Build description with leaders if provided
+  let finalDescription = data.description || ""
+  const leaderIds = data.leader_ids || []
+  
+  if (leaderIds.length > 0) {
+    // Fetch leader names
+    const { data: leaders } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", leaderIds)
+    
+    if (leaders && leaders.length > 0) {
+      const leaderNames = leaders.map(l => `LIDER: "${l.full_name}"`).join("\n")
+      finalDescription = finalDescription 
+        ? `${finalDescription}\n${leaderNames}`
+        : leaderNames
+    }
+  }
+
   const { data: createdArea, error } = await supabase
     .from("areas")
     .insert({
       name: data.name,
-      description: data.description || null,
+      description: finalDescription || null,
       location_id: locationId,
       created_by: profile.id,
     })
@@ -126,10 +175,45 @@ export async function createArea(data: {
     return { success: false, error: error.message, area: null }
   }
 
+  // Add leaders to area_members and ensure they have LEADER role
+  if (createdArea && leaderIds.length > 0) {
+    // Get all leader profiles to check their current roles
+    const { data: leaderProfiles } = await supabase
+      .from("profiles")
+      .select("id, role")
+      .in("id", leaderIds)
+
+    // Update profiles to have LEADER role if they don't already have it
+    for (const leader of leaderProfiles || []) {
+      if (leader.role !== "LEADER" && leader.role !== "PASTOR" && leader.role !== "SUPER_ADMIN") {
+        await supabase
+          .from("profiles")
+          .update({ role: "LEADER" })
+          .eq("id", leader.id)
+      }
+    }
+
+    // Add them to area_members as leaders
+    const areaMembersData = leaderIds.map(leaderId => ({
+      area_id: createdArea.id,
+      user_id: leaderId,
+      is_leader: true,
+    }))
+
+    const { error: memberError } = await supabase
+      .from("area_members")
+      .insert(areaMembersData)
+
+    if (memberError) {
+      console.error("[v0] Error adding leaders to area:", memberError)
+      // Don't fail the entire creation, just log the error
+    }
+  }
+
   revalidatePath("/dashboard/areas")
   return { 
     success: true, 
-    area: createdArea ? { ...createdArea, member_count: 0 } : null 
+    area: createdArea ? { ...createdArea, member_count: leaderIds.length } : null 
   }
 }
 
@@ -340,4 +424,33 @@ export async function getAvailableUsersForArea(areaId: string, locationId: strin
 
   // Filter out existing members
   return (data || []).filter(user => !existingIds.includes(user.id))
+}
+
+// Search users for leader selection
+export async function searchUsers(searchTerm: string) {
+  const supabase = await createClient()
+  const { allowed, profile } = await canManageAreas()
+  
+  if (!allowed || !profile?.location_id) return []
+
+  // Search by name or email
+  let query = supabase
+    .from("profiles")
+    .select("id, full_name, email")
+    .eq("is_active", true)
+    .eq("location_id", profile.location_id)
+
+  if (searchTerm.trim()) {
+    // Search by name or email
+    query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
+  }
+
+  const { data, error } = await query.limit(10)
+
+  if (error) {
+    console.error("Error searching users:", error)
+    return []
+  }
+
+  return data || []
 }

@@ -40,6 +40,7 @@ export const translations = {
       feature3Title: "Community Tools",
       feature3Desc: "Connect your congregation with modern communication tools",
       footer: "Built with purpose for churches worldwide.",
+      faithCommunity: "A faith community committed to service",
     },
     // Dashboard
     dashboard: {

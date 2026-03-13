@@ -32,8 +32,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Plus, ArrowLeft, Users, Loader2, Pencil, Trash2, LayoutGrid } from "lucide-react"
-import { createArea, updateArea, deleteArea, type Area } from "@/app/actions/areas"
+import { Plus, ArrowLeft, Users, Loader2, Pencil, Trash2, LayoutGrid, Search } from "lucide-react"
+import { createArea, updateArea, deleteArea, searchUsers, type Area } from "@/app/actions/areas"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import Link from "next/link"
 
@@ -53,6 +53,7 @@ interface AreasPageClientProps {
 export function AreasPageClient({ initialAreas, locations, profile }: AreasPageClientProps) {
   const router = useRouter()
   const [areas, setAreas] = useState<Area[]>(initialAreas)
+  const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>("")
   
   // Dialog states
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -60,16 +61,24 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
   const [areaToDelete, setAreaToDelete] = useState<Area | null>(null)
   
   // Form state
-  const [formData, setFormData] = useState({ name: "", description: "", location_id: "" })
+  const [formData, setFormData] = useState({ name: "", description: "", location_id: "", leader_ids: [] as string[] })
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; full_name: string; email: string }>>([])
+  const [searchTerm, setSearchTerm] = useState("")
 
   const isSuperAdmin = profile.role === "SUPER_ADMIN"
 
+  // Filter areas based on selected location (only for SUPER_ADMIN)
+  const filteredAreas = isSuperAdmin && selectedLocationFilter
+    ? areas.filter(area => area.location_id === selectedLocationFilter)
+    : areas
+
   const openCreateDialog = () => {
-    setFormData({ name: "", description: "", location_id: profile.location_id || "" })
+    setFormData({ name: "", description: "", location_id: profile.location_id || "", leader_ids: [] })
     setIsCreateOpen(true)
     setError(null)
+    setSearchTerm("")
   }
 
   const openEditDialog = (area: Area) => {
@@ -110,12 +119,13 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
       name: formData.name,
       description: formData.description || undefined,
       location_id: locationIdToUse || "",
+      leader_ids: formData.leader_ids.length > 0 ? formData.leader_ids : undefined,
     })
     
     if (result.success && result.area) {
       setAreas(prev => [result.area!, ...prev])
       setIsCreateOpen(false)
-      setFormData({ name: "", description: "", location_id: "" })
+      setFormData({ name: "", description: "", location_id: "", leader_ids: [] })
     } else {
       setError(result.error || "Error al crear el area")
     }
@@ -188,8 +198,32 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
           </Button>
         </div>
 
+        {/* Location Filter - Only for SUPER_ADMIN */}
+        {isSuperAdmin && (
+          <div className="mb-6 flex items-end gap-3">
+            <div className="flex-1">
+              <Label htmlFor="location-filter" className="text-sm font-medium mb-2 block">
+                Filtrar por Sede
+              </Label>
+              <Select value={selectedLocationFilter} onValueChange={setSelectedLocationFilter}>
+                <SelectTrigger id="location-filter">
+                  <SelectValue placeholder="Todas las sedes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Todas las sedes</SelectItem>
+                  {locations.map((location) => (
+                    <SelectItem key={location.id} value={location.id}>
+                      {location.name} {location.city ? `(${location.city})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
         {/* Areas Grid */}
-        {areas.length === 0 ? (
+        {filteredAreas.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <LayoutGrid className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -203,7 +237,7 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {areas.map((area) => (
+            {filteredAreas.map((area) => (
               <Card key={area.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
@@ -322,6 +356,86 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
               <p className="text-sm text-muted-foreground">
                 El area se creara en tu sede actual.
               </p>
+            )}
+
+            {/* Leaders Multi-Select - Only when creating */}
+            {!editingArea && (
+              <div className="space-y-2">
+                <Label>Seleccionar Lideres (opcional)</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar usuario por nombre o email..."
+                    value={searchTerm}
+                    onChange={async (e) => {
+                      setSearchTerm(e.target.value)
+                      if (e.target.value.trim().length > 1) {
+                        const results = await searchUsers(e.target.value)
+                        setAvailableUsers(results)
+                      } else {
+                        setAvailableUsers([])
+                      }
+                    }}
+                    className="pl-10"
+                  />
+                </div>
+                
+                {/* Search Results */}
+                {searchTerm.trim().length > 1 && availableUsers.length > 0 && (
+                  <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+                    {availableUsers.map((user) => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => {
+                          if (!formData.leader_ids.includes(user.id)) {
+                            setFormData(prev => ({
+                              ...prev,
+                              leader_ids: [...prev.leader_ids, user.id]
+                            }))
+                          }
+                          setSearchTerm("")
+                          setAvailableUsers([])
+                        }}
+                        className="w-full text-left p-2 hover:bg-muted rounded text-sm flex justify-between items-center"
+                      >
+                        <div>
+                          <div className="font-medium">{user.full_name}</div>
+                          <div className="text-xs text-muted-foreground">{user.email}</div>
+                        </div>
+                        {formData.leader_ids.includes(user.id) && (
+                          <span className="text-xs text-primary">✓</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Selected Leaders */}
+                {formData.leader_ids.length > 0 && (
+                  <div className="border rounded-md p-3 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Lideres seleccionados:</p>
+                    {formData.leader_ids.map((leaderId) => {
+                      const leader = availableUsers.find(u => u.id === leaderId)
+                      return (
+                        <div key={leaderId} className="flex items-center justify-between bg-muted p-2 rounded text-sm">
+                          <span>{leader?.full_name || leaderId}</span>
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({
+                              ...prev,
+                              leader_ids: prev.leader_ids.filter(id => id !== leaderId)
+                            }))}
+                            className="text-xs text-destructive hover:underline"
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             )}
           </div>
           
