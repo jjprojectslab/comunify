@@ -65,6 +65,7 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; full_name: string; email: string }>>([])
+  const [selectedLeaders, setSelectedLeaders] = useState<Map<string, string>>(new Map()) // id -> full_name
   const [searchTerm, setSearchTerm] = useState("")
 
   const isSuperAdmin = profile.role === "SUPER_ADMIN"
@@ -76,6 +77,7 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
 
   const openCreateDialog = () => {
     setFormData({ name: "", description: "", location_id: profile.location_id || "", leader_ids: [] })
+    setSelectedLeaders(new Map())
     setIsCreateOpen(true)
     setError(null)
     setSearchTerm("")
@@ -126,6 +128,8 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
       setAreas(prev => [result.area!, ...prev])
       setIsCreateOpen(false)
       setFormData({ name: "", description: "", location_id: "", leader_ids: [] })
+      setSelectedLeaders(new Map())
+      router.refresh() // Refresh to update profile roles in dashboard
     } else {
       setError(result.error || "Error al crear el area")
     }
@@ -393,6 +397,8 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
                               ...prev,
                               leader_ids: [...prev.leader_ids, user.id]
                             }))
+                            // Save leader data for display
+                            setSelectedLeaders(prev => new Map(prev).set(user.id, user.full_name))
                           }
                           setSearchTerm("")
                           setAvailableUsers([])
@@ -416,16 +422,23 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
                   <div className="border rounded-md p-3 space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">Lideres seleccionados:</p>
                     {formData.leader_ids.map((leaderId) => {
-                      const leader = availableUsers.find(u => u.id === leaderId)
+                      const leaderName = selectedLeaders.get(leaderId)
                       return (
                         <div key={leaderId} className="flex items-center justify-between bg-muted p-2 rounded text-sm">
-                          <span>{leader?.full_name || leaderId}</span>
+                          <span>{leaderName || leaderId}</span>
                           <button
                             type="button"
-                            onClick={() => setFormData(prev => ({
-                              ...prev,
-                              leader_ids: prev.leader_ids.filter(id => id !== leaderId)
-                            }))}
+                            onClick={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                leader_ids: prev.leader_ids.filter(id => id !== leaderId)
+                              }))
+                              setSelectedLeaders(prev => {
+                                const newMap = new Map(prev)
+                                newMap.delete(leaderId)
+                                return newMap
+                              })
+                            }}
                             className="text-xs text-destructive hover:underline"
                           >
                             Remover
