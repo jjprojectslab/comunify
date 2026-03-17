@@ -369,8 +369,7 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
             )}
 
             {/* Leaders Multi-Select - Create and Edit */}
-            {(editingArea || !isSuperAdmin) && (
-              <div className="space-y-2">
+            <div className="space-y-2">
                 <Label>Seleccionar Lideres (opcional)</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -455,7 +454,7 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
                   </div>
                 )}
               </div>
-            )}
+            </div>
           </div>
           
           <DialogFooter>
