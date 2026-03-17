@@ -369,7 +369,7 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
             )}
 
             {/* Leaders Multi-Select - Create and Edit */}
-            {!isSuperAdmin || editingArea ? (
+            {editingArea || !isSuperAdmin ? (
               <div className="space-y-2">
                 <Label>Seleccionar Lideres (opcional)</Label>
                 <div className="relative">
