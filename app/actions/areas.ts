@@ -242,6 +242,7 @@ export async function updateArea(areaId: string, data: {
   name?: string
   description?: string
   location_id?: string
+  leader_ids?: string[]
 }) {
   const supabase = await createClient()
   const { allowed, profile } = await canManageAreas()
@@ -270,7 +271,70 @@ export async function updateArea(areaId: string, data: {
     return { success: false, error: error.message }
   }
 
+  // Handle leader updates
+  if (data.leader_ids && data.leader_ids.length > 0) {
+    const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+    const adminClient = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
+    // Get current leaders
+    const { data: currentMembers } = await supabase
+      .from("area_members")
+      .select("user_id")
+      .eq("area_id", areaId)
+      .eq("is_leader", true)
+
+    const currentLeaderIds = new Set((currentMembers || []).map(m => m.user_id))
+    const newLeaderIds = new Set(data.leader_ids)
+
+    // Remove leaders that are no longer selected
+    const leadersToRemove = Array.from(currentLeaderIds).filter(id => !newLeaderIds.has(id))
+    if (leadersToRemove.length > 0) {
+      await supabase
+        .from("area_members")
+        .delete()
+        .eq("area_id", areaId)
+        .in("user_id", leadersToRemove)
+    }
+
+    // Add new leaders
+    const leadersToAdd = Array.from(newLeaderIds).filter(id => !currentLeaderIds.has(id))
+    if (leadersToAdd.length > 0) {
+      // Update roles
+      const { data: leaderProfiles } = await adminClient
+        .from("profiles")
+        .select("id, role")
+        .in("id", leadersToAdd)
+
+      const updatePromises = (leaderProfiles || []).map(async (leader) => {
+        if (leader.role !== "LEADER" && leader.role !== "PASTOR" && leader.role !== "SUPER_ADMIN") {
+          await adminClient
+            .from("profiles")
+            .update({ role: "LEADER" })
+            .eq("id", leader.id)
+        }
+      })
+
+      await Promise.all(updatePromises)
+
+      // Add to area_members
+      const areaMembersData = leadersToAdd.map(leaderId => ({
+        area_id: areaId,
+        user_id: leaderId,
+        is_leader: true,
+      }))
+
+      await adminClient
+        .from("area_members")
+        .insert(areaMembersData)
+    }
+  }
+
   revalidatePath("/dashboard")
+  revalidatePath("/dashboard/areas")
   return { success: true }
 }
 

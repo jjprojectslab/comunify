@@ -88,9 +88,12 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
       name: area.name,
       description: area.description || "",
       location_id: area.location_id,
+      leader_ids: [] // Initialize empty for edit mode
     })
+    setSelectedLeaders(new Map()) // Initialize empty map
     setEditingArea(area)
     setError(null)
+    setSearchTerm("")
   }
 
   const handleCreate = async () => {
@@ -148,6 +151,7 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
     const result = await updateArea(editingArea.id, {
       name: formData.name,
       description: formData.description || undefined,
+      leader_ids: formData.leader_ids.length > 0 ? formData.leader_ids : undefined,
     })
     
     if (result.success) {
@@ -157,7 +161,9 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
           : a
       ))
       setEditingArea(null)
-      setFormData({ name: "", description: "", location_id: "" })
+      setFormData({ name: "", description: "", location_id: "", leader_ids: [] })
+      setSelectedLeaders(new Map())
+      router.refresh() // Refresh to update profile roles
     } else {
       setError(result.error || "Error al actualizar el area")
     }
@@ -362,8 +368,8 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
               </p>
             )}
 
-            {/* Leaders Multi-Select - Only when creating */}
-            {!editingArea && (
+            {/* Leaders Multi-Select - Create and Edit */}
+            {!isSuperAdmin || editingArea ? (
               <div className="space-y-2">
                 <Label>Seleccionar Lideres (opcional)</Label>
                 <div className="relative">
