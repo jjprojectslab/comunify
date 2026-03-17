@@ -52,7 +52,7 @@ interface AreasPageClientProps {
 
 export function AreasPageClient({ initialAreas, locations, profile }: AreasPageClientProps) {
   const router = useRouter()
-  const [areas, setAreas] = useState<Area[]>(initialAreas)
+  const [areas, setAreas] = useState<Area[]>(initialAreas || [])
   const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>("")
   
   // Dialog states
@@ -71,9 +71,9 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
   const isSuperAdmin = profile.role === "SUPER_ADMIN"
 
   // Filter areas based on selected location (only for SUPER_ADMIN)
-  const filteredAreas = isSuperAdmin && selectedLocationFilter && selectedLocationFilter !== "all"
+  const filteredAreas = (isSuperAdmin && selectedLocationFilter && selectedLocationFilter !== "all"
     ? areas.filter(area => area.location_id === selectedLocationFilter)
-    : areas
+    : areas) || []
 
   const openCreateDialog = () => {
     setFormData({ name: "", description: "", location_id: profile.location_id || "", leader_ids: [] })
