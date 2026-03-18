@@ -369,7 +369,8 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
             )}
 
             {/* Leaders Multi-Select - Create and Edit */}
-            <div className="space-y-2">
+            {(editingArea || !isSuperAdmin) && (
+              <div className="space-y-2">
                 <Label>Seleccionar Lideres (opcional)</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -379,7 +380,7 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
                     onChange={async (e) => {
                       setSearchTerm(e.target.value)
                       if (e.target.value.trim().length > 1) {
-                        const results = await searchUsers(e.target.value)
+                        const results = await searchUsers(e.target.value, formData.location_id)
                         setAvailableUsers(results)
                       } else {
                         setAvailableUsers([])
@@ -392,33 +393,45 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
                 {/* Search Results */}
                 {searchTerm.trim().length > 1 && availableUsers.length > 0 && (
                   <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
-                    {availableUsers.map((user) => (
-                      <button
-                        key={user.id}
-                        type="button"
-                        onClick={() => {
-                          if (!formData.leader_ids.includes(user.id)) {
-                            setFormData(prev => ({
-                              ...prev,
-                              leader_ids: [...prev.leader_ids, user.id]
-                            }))
-                            // Save leader data for display
-                            setSelectedLeaders(prev => new Map(prev).set(user.id, user.full_name))
-                          }
-                          setSearchTerm("")
-                          setAvailableUsers([])
-                        }}
-                        className="w-full text-left p-2 hover:bg-muted rounded text-sm flex justify-between items-center"
-                      >
-                        <div>
-                          <div className="font-medium">{user.full_name}</div>
-                          <div className="text-xs text-muted-foreground">{user.email}</div>
-                        </div>
-                        {formData.leader_ids.includes(user.id) && (
-                          <span className="text-xs text-primary">✓</span>
-                        )}
-                      </button>
-                    ))}
+                    {availableUsers.map((user: any) => {
+                      const isDisabled = !user.same_location
+                      return (
+                        <button
+                          key={user.id}
+                          type="button"
+                          disabled={isDisabled}
+                          onClick={() => {
+                            if (!formData.leader_ids.includes(user.id)) {
+                              setFormData(prev => ({
+                                ...prev,
+                                leader_ids: [...prev.leader_ids, user.id]
+                              }))
+                              // Save leader data for display
+                              setSelectedLeaders(prev => new Map(prev).set(user.id, user.full_name))
+                            }
+                            setSearchTerm("")
+                            setAvailableUsers([])
+                          }}
+                          className={`w-full text-left p-2 rounded text-sm flex justify-between items-center transition-colors ${
+                            isDisabled 
+                              ? "opacity-50 cursor-not-allowed bg-muted/30" 
+                              : "hover:bg-muted cursor-pointer"
+                          }`}
+                          title={isDisabled ? "Este usuario no pertenece a la misma sede" : ""}
+                        >
+                          <div>
+                            <div className="font-medium">{user.full_name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {user.email}
+                              {isDisabled && " (Otra sede)"}
+                            </div>
+                          </div>
+                          {formData.leader_ids.includes(user.id) && (
+                            <span className="text-xs text-primary">✓</span>
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
 
@@ -454,7 +467,7 @@ export function AreasPageClient({ initialAreas, locations, profile }: AreasPageC
                   </div>
                 )}
               </div>
-            </div>
+            )}
           </div>
           
           <DialogFooter>

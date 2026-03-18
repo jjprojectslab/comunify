@@ -510,31 +510,37 @@ export async function getAvailableUsersForArea(areaId: string, locationId: strin
   return (data || []).filter(user => !existingIds.includes(user.id))
 }
 
-// Search users for leader selection
-export async function searchUsers(searchTerm: string) {
+// Search users for leader selection - returns all users from the same location
+export async function searchUsers(searchTerm: string, targetLocationId?: string) {
   const supabase = await createClient()
   const { allowed, profile } = await canManageAreas()
   
   if (!allowed || !profile?.location_id) return []
 
-  // Search by name or email
+  // Use provided location or current user's location
+  const locationId = targetLocationId || profile.location_id
+
+  // Search by name or email - include users from all locations but mark by location
   let query = supabase
     .from("profiles")
-    .select("id, full_name, email")
+    .select("id, full_name, email, location_id")
     .eq("is_active", true)
-    .eq("location_id", profile.location_id)
 
   if (searchTerm.trim()) {
     // Search by name or email
     query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
   }
 
-  const { data, error } = await query.limit(10)
+  const { data, error } = await query.limit(50)
 
   if (error) {
     console.error("Error searching users:", error)
     return []
   }
 
-  return data || []
+  // Return all users, they will be filtered/disabled on the frontend based on location match
+  return (data || []).map(user => ({
+    ...user,
+    same_location: user.location_id === locationId
+  }))
 }
