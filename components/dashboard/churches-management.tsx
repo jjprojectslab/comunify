@@ -46,7 +46,7 @@ import {
   updateLocation,
   deleteLocation,
   getOrganizationsWithLocations,
-  getPastors
+  getAvailablePastors
 } from "@/app/actions/auth"
 import { Church, MapPin, Plus, Pencil, Trash2, Loader2, Phone, Mail, Globe, ExternalLink, User } from "lucide-react"
 import { useI18n } from "@/lib/i18n/context"
@@ -82,7 +82,16 @@ interface Organization {
   locations: Location[]
 }
 
-export function ChurchesManagement() {
+interface Profile {
+  role: string
+  id: string
+}
+
+interface ChurchesManagementProps {
+  profile?: Profile
+}
+
+export function ChurchesManagement({ profile }: ChurchesManagementProps) {
   const { t } = useI18n()
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [pastors, setPastors] = useState<Pastor[]>([])
@@ -120,6 +129,14 @@ export function ChurchesManagement() {
     pastorId: "",
     isMainBranch: false,
   })
+
+  // Function to generate Google Maps embed URL
+  const getGoogleMapsUrl = (address: string, city?: string, country?: string) => {
+    if (!address) return ""
+    const fullAddress = [address, city, country].filter(Boolean).join(", ")
+    const encodedAddress = encodeURIComponent(fullAddress)
+    return `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3024.1234567890!2d-74.006!3d40.7128!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2z${encodedAddress}!5e0!3m2!1sen!2sus!4v1234567890`
+  }
 
   const loadData = async () => {
     setIsLoading(true)
@@ -619,180 +636,6 @@ export function ChurchesManagement() {
             )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setIsCreateChurchOpen(false)} className="bg-transparent">
-              {t.common.cancel}
-            </Button>
-            <Button onClick={handleCreateChurch} disabled={!churchForm.name || isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : t.common.create}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Church Dialog */}
-      <Dialog open={isEditChurchOpen} onOpenChange={setIsEditChurchOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t.admin.editChurch}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="editChurchName">{t.admin.churchName} *</Label>
-              <Input
-                id="editChurchName"
-                value={churchForm.name}
-                onChange={(e) => setChurchForm({ ...churchForm, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="editChurchDesc">{t.admin.description}</Label>
-              <Textarea
-                id="editChurchDesc"
-                value={churchForm.description}
-                onChange={(e) => setChurchForm({ ...churchForm, description: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="editChurchAddress">{t.admin.address}</Label>
-              <Input
-                id="editChurchAddress"
-                value={churchForm.address}
-                onChange={(e) => setChurchForm({ ...churchForm, address: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="editChurchPhone">{t.admin.phone}</Label>
-                <Input
-                  id="editChurchPhone"
-                  value={churchForm.phone}
-                  onChange={(e) => setChurchForm({ ...churchForm, phone: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="editChurchEmail">{t.admin.email}</Label>
-                <Input
-                  id="editChurchEmail"
-                  type="email"
-                  value={churchForm.email}
-                  onChange={(e) => setChurchForm({ ...churchForm, email: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="editChurchWebsite">{t.admin.website}</Label>
-              <Input
-                id="editChurchWebsite"
-                value={churchForm.website}
-                onChange={(e) => setChurchForm({ ...churchForm, website: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="editChurchLocationUrl">{t.admin.locationUrl}</Label>
-              <Input
-                id="editChurchLocationUrl"
-                value={churchForm.locationUrl}
-                onChange={(e) => setChurchForm({ ...churchForm, locationUrl: e.target.value })}
-              />
-            </div>
-            {message && (
-              <p className={`text-sm ${message.type === "success" ? "text-green-600" : "text-red-600"}`}>
-                {message.text}
-              </p>
-            )}
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setIsEditChurchOpen(false)} className="bg-transparent">
-              {t.common.cancel}
-            </Button>
-            <Button onClick={handleEditChurch} disabled={!churchForm.name || isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : t.common.save}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Church Dialog */}
-      <AlertDialog open={isDeleteChurchDialogOpen} onOpenChange={setIsDeleteChurchDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t.admin.deleteChurch}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t.admin.confirmDelete}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteChurch}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : t.common.delete}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Create Branch Dialog */}
-      <Dialog open={isCreateBranchOpen} onOpenChange={setIsCreateBranchOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t.admin.createBranch}</DialogTitle>
-            <DialogDescription>{selectedOrg?.name}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="branchName">{t.admin.branchName} *</Label>
-              <Input
-                id="branchName"
-                value={branchForm.name}
-                onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
-                placeholder="Sede Centro"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="branchAddress">{t.admin.address}</Label>
-              <Input
-                id="branchAddress"
-                value={branchForm.address}
-                onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="branchCity">{t.admin.city}</Label>
-                <Input
-                  id="branchCity"
-                  value={branchForm.city}
-                  onChange={(e) => setBranchForm({ ...branchForm, city: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="branchCountry">{t.admin.country}</Label>
-                <Input
-                  id="branchCountry"
-                  value={branchForm.country}
-                  onChange={(e) => setBranchForm({ ...branchForm, country: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="isMainBranch"
-                checked={branchForm.isMainBranch}
-                onCheckedChange={(checked) => setBranchForm({ ...branchForm, isMainBranch: !!checked })}
-              />
-              <Label htmlFor="isMainBranch" className="text-sm font-normal">
-                {t.admin.isMainBranch}
-              </Label>
-            </div>
-            {message && (
-              <p className={`text-sm ${message.type === "success" ? "text-green-600" : "text-red-600"}`}>
-                {message.text}
-              </p>
-            )}
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setIsCreateBranchOpen(false)} className="bg-transparent">
               {t.common.cancel}
             </Button>
@@ -844,43 +687,51 @@ export function ChurchesManagement() {
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="editBranchPhone">{t.admin.phone}</Label>
-              <Input
-                id="editBranchPhone"
-                value={branchForm.phone}
-                onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="editBranchPastor">{t.admin.pastor}</Label>
-              <Select
-                value={branchForm.pastorId}
-                onValueChange={(value) => setBranchForm({ ...branchForm, pastorId: value === "none" ? "" : value })}
-              >
-                <SelectTrigger id="editBranchPastor">
-                  <SelectValue placeholder={t.admin.selectPastor} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t.admin.noPastor}</SelectItem>
-                  {pastors.map((pastor) => (
-                    <SelectItem key={pastor.id} value={pastor.id}>
-                      {pastor.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="editIsMainBranch"
-                checked={branchForm.isMainBranch}
-                onCheckedChange={(checked) => setBranchForm({ ...branchForm, isMainBranch: !!checked })}
-              />
-              <Label htmlFor="editIsMainBranch" className="text-sm font-normal">
-                {t.admin.isMainBranch}
-              </Label>
-            </div>
+            {/* Google Maps Embed Preview */}
+            {branchForm.address && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Ubicación en Mapa</Label>
+                <div className="rounded-md border overflow-hidden">
+                  <iframe
+                    width="100%"
+                    height="200"
+                    frameBorder="0"
+                    src={`https://www.google.com/maps?q=${encodeURIComponent(
+                      [branchForm.address, branchForm.city, branchForm.country]
+                        .filter(Boolean)
+                        .join(", ")
+                    )}&output=embed`}
+                    allowFullScreen=""
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                </div>
+              </div>
+            )}
+            {profile?.role === "SUPER_ADMIN" && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="editIsMainBranch"
+                  checked={branchForm.isMainBranch}
+                  onCheckedChange={(checked) => setBranchForm({ ...branchForm, isMainBranch: !!checked })}
+                />
+                <Label htmlFor="editIsMainBranch" className="text-sm font-normal">
+                  {t.admin.isMainBranch}
+                </Label>
+              </div>
+            )}
+            {profile?.role === "SUPER_ADMIN" && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isMainBranch"
+                  checked={branchForm.isMainBranch}
+                  onCheckedChange={(checked) => setBranchForm({ ...branchForm, isMainBranch: !!checked })}
+                />
+                <Label htmlFor="isMainBranch" className="text-sm font-normal">
+                  {t.admin.isMainBranch}
+                </Label>
+              </div>
+            )}
             {message && (
               <p className={`text-sm ${message.type === "success" ? "text-green-600" : "text-red-600"}`}>
                 {message.text}

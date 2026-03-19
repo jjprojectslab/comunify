@@ -676,6 +676,57 @@ export async function getPastors() {
   return data || []
 }
 
+// Get pastors that are not assigned to any location (except optionally one location)
+export async function getAvailablePastors(excludeLocationId?: string) {
+  const supabase = await createClient()
+
+  // Get all locations with their pastor assignments
+  const { data: locationsData, error: locError } = await supabase
+    .from("locations")
+    .select("id, pastor_id")
+
+  if (locError) {
+    console.error("Error fetching locations:", locError)
+    return []
+  }
+
+  // Get current pastor for the location if provided
+  let currentPastorId: string | null = null
+  if (excludeLocationId) {
+    const { data: currentLocation } = await supabase
+      .from("locations")
+      .select("pastor_id")
+      .eq("id", excludeLocationId)
+      .single()
+    
+    currentPastorId = currentLocation?.pastor_id || null
+  }
+
+  // Collect all assigned pastor IDs (except current)
+  const assignedPastorIds = new Set(
+    (locationsData || [])
+      .filter(loc => loc.pastor_id && loc.id !== excludeLocationId)
+      .map(loc => loc.pastor_id)
+  )
+
+  // Get all pastors
+  const { data: pastors, error: pastorError } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, location_id")
+    .eq("role", "PASTOR")
+    .order("full_name")
+
+  if (pastorError) {
+    console.error("Error fetching pastors:", pastorError)
+    return []
+  }
+
+  // Filter out assigned pastors, but include the current one
+  return (pastors || []).filter(pastor => 
+    !assignedPastorIds.has(pastor.id) || pastor.id === currentPastorId
+  )
+}
+
 export async function createUserAsAdmin(formData: {
   firstName: string
   lastName: string

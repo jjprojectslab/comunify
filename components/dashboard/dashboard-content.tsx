@@ -365,7 +365,7 @@ export function DashboardContent({ profile, user }: DashboardContentProps) {
             </TabsContent>
 
             <TabsContent value="churches">
-              <ChurchesManagement />
+              <ChurchesManagement profile={profile} />
             </TabsContent>
 
             <TabsContent value="users" className="space-y-4">
